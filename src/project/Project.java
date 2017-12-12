@@ -32,7 +32,7 @@ public class Project {
     public static void main(String[] args) throws SQLException, IOException {
         Project p = new Project();
         p.mysql.createConnection();
-        System.out.println("distancia: "+Project.distanciaCoord(32.02602, 34.778409,31.80037, 34.778239));
+        System.out.println("distancia: "+Project.distanceCoord(32.02602, 34.778409,31.80037, 34.778239));
         p.mysql.closeConnection();
         System.out.println(p.tripDistance(32.02602,34.778409,31.80037,34.778239,"9:02"));
        /* p.mysql.createConnection();
@@ -85,7 +85,7 @@ public class Project {
         long diferencia = (today.getTime() - date.getTime()) / MILLSECS_PER_SECONDS;
         return (diferencia*24*60*60) + eta;
     }
-    public static double distanciaCoord(double lat1, double lng1, double lat2, double lng2) {   
+    public static double distanceCoord(double lat1, double lng1, double lat2, double lng2) {   
         double radioEarth = 6371000;//en km  
         double dLat = Math.toRadians(lat2 - lat1);  
         double dLng = Math.toRadians(lng2 - lng1);  
