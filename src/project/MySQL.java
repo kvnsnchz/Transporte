@@ -68,9 +68,9 @@ public class MySQL {
             System.out.println("Error in data storage");
         }
     }
-    public void updateDataPassengers(int pass_no, int default_s) {
+    public void updateDataPassengers(int pass_no,String default_s) {
         try {
-            String Query = "UPDATE passengers SET default_station="+default_s+" WHERE pass_no=" + pass_no; 
+            String Query = "UPDATE passengers SET default_station=\"" + default_s + "\" WHERE pass_no=" + pass_no; 
             Statement st = connection.createStatement();
             st.executeUpdate(Query);
         } catch (SQLException ex) {
