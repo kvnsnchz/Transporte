@@ -26,7 +26,7 @@ public class MySQL {
     void createConnection() {
         try {
             Class.forName("com.mysql.jdbc.Driver");
-            connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/base", "root", "");
+            connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/maccabiabusproject", "root", "");
             System.out.println("Database Connection Success");
         } catch (ClassNotFoundException ex) {
             Logger.getLogger(Project.class.getName()).log(Level.SEVERE, null, ex);
@@ -68,12 +68,11 @@ public class MySQL {
             System.out.println("Error in data storage");
         }
     }
-    public void updateData(String table_name, String ID, String name, int status) {
+    public void updateDataPassengers(int pass_no, int default_s) {
         try {
-            String Query = "UPDATE " + table_name + " SET status="+status+", name=\""+name+"\" WHERE id=\"" + ID + "\""; 
+            String Query = "UPDATE passengers SET default_station="+default_s+" WHERE pass_no=" + pass_no; 
             Statement st = connection.createStatement();
             st.executeUpdate(Query);
-            System.out.println("Data update successfully");
         } catch (SQLException ex) {
             System.out.println(ex.getMessage());
             System.out.println("Error in data update");
