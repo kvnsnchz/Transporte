@@ -15,6 +15,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
@@ -29,14 +30,56 @@ import sun.net.www.content.audio.wav;
 public class Project {
     MySQL mysql;
     int walking_distance;
+    ArrayList<Destination> destinations;
     public Project(){
         mysql = new MySQL();
         walking_distance = 600;
+        destinations = new ArrayList<>();
     }
     public static void main(String[] args) throws SQLException, IOException {
         Project p = new Project();
-        p.defaultStationAssignment();
-        System.out.println(p.tripDistance(32.02602,34.778409,31.80037,34.778239,"9:02"));
+        p.probrar();
+        //p.fillDestination();
+       // p.defaultStationAssignment();
+        
+    }
+    public void probrar(){
+        Destination dest = new Destination("30,40");
+        dest.addBusStop(new BusStop(30, 40, 10, null));
+        dest.addBusStop(new BusStop(30, 40, 15, null));
+        dest.addBusStop(new BusStop(30, 40, 4, null));
+        dest.addBusStop(new BusStop(30, 40, 3, null));
+        dest.addBusStop(new BusStop(30, 40, 4, null));
+        dest.startMatrixDistance();
+        dest.addDistance(0,1,2);
+        dest.addDistance(0,2,5);
+        dest.addDistance(0,3,6);
+        dest.addDistance(0,4,1);
+        dest.addDistance(1,2,3);
+        dest.addDistance(1,3,1);
+        dest.addDistance(1,4,5);
+        dest.addDistance(2,3,8);
+        dest.addDistance(2,4,7);
+        dest.addDistance(3,4,3);
+        dest.matriz();
+        dest.optimalWay();
+    }
+    public void fillDestination() throws SQLException{
+        mysql.createConnection();
+        ResultSet rs_pass = mysql.getValues("passengers");
+        while(rs_pass.next()){
+            Destination dest = new Destination(rs_pass.getString("destination_coordinates"));
+            if(destinations.isEmpty() || !dest.containedInArray(destinations)){
+                destinations.add(dest);
+            }
+        }
+        mysql.closeConnection();
+    }
+    public void addBusStop(double dest_lat,double dest_lng,double buss_lat,double buss_lng,double trip_distance, int pass_no){
+        int i = Destination.indexArray(destinations, dest_lat, dest_lng);
+        if(destinations.get(i).busStopsIsEmpty() || !destinations.get(i).containedInArrayBusStops(buss_lat, buss_lng)){
+            destinations.get(i).addBusStop(new BusStop(buss_lat, buss_lng, trip_distance, new Passenger(pass_no)));
+        }
     }
     public  double distanceCoord(double lat1,double lng1, double lat2, double lng2) {
         double radioEarth = 6371000;//en km  
@@ -84,11 +127,19 @@ public class Project {
                 String[] string3 = default_s.split(",");
                 double lat3 = Double.parseDouble(string3[0]);
                 double lng3 = Double.parseDouble(string3[1]);
-                System.out.println("trip distance: " + tripDistance(lat3, lng3, lat2, lng2, rs_pass.getString("eta")));
+                double trip_distance = tripDistance(lat3, lng3, lat2, lng2, rs_pass.getString("eta"));
+                System.out.println("trip distance: " + trip_distance);
+                addBusStop(lat2, lng2, lat3, lng3, trip_distance, id);
             }
             
         }
         mysql.closeConnection();
+        for (Destination d : destinations) {
+            System.out.println("Destination: "+d.getCoor());
+            for (BusStop b : d.getBus_stops()) {
+                System.out.println("Bus Stop: "+b.getCoor());
+            }
+        }
             
     }
     public long seconds_eta(String eta){
@@ -133,5 +184,6 @@ public class Project {
             
         }
         return 0;
-    }    
+    }
+    
 }
