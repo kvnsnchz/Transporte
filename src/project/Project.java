@@ -38,10 +38,49 @@ public class Project {
     }
     public static void main(String[] args) throws SQLException, IOException {
         Project p = new Project();
-        p.probrar();
-        //p.fillDestination();
-       // p.defaultStationAssignment();
+        //p.probrar();
+        p.fillDestination();
+        p.defaultStationAssignment();
+        p.searchWayToDestination();
         
+    }
+    public void searchWayToDestination() throws IOException{
+        for (Destination d : destinations) {
+            d.startMatrixDistance();
+            for (int i = 0; i < d.getBusStops().size(); i++) {
+                for (int j = i+1; j < d.getBusStops().size(); j++) {
+                    //double t = tripDistance(d.getLatBusStop(i), d.getLngBusStop(i), d.getLatBusStop(j), d.getLngBusStop(j));
+                    double t = distanceCoord(d.getLatBusStop(i), d.getLngBusStop(i), d.getLatBusStop(j), d.getLngBusStop(j));
+                    d.addDistance(i, j,t);
+                }
+            }
+            d.optimalWay();
+            calculateValues();
+        }
+    }
+    public void calculateValues() throws IOException{
+        for (Destination d : destinations) {
+            System.out.println("Valores de D:"+d.getCoor());
+            for (int i = 0; i < d.getWay().size()-1; i++) {
+                double []values;
+                if(d.getWay(i) == -1){
+                     values = values(d.getLat(),d.getLng(), d.getLatBusStop(d.getWay(i+1)), d.getLngBusStop(d.getWay(i+1)));
+                }
+                else{
+                    if(d.getWay(i+1) == -1){
+                        values = values(d.getLatBusStop(d.getWay(i)),d.getLngBusStop(d.getWay(i)), d.getLat(), d.getLng());
+                    }
+                    else{
+                        values = values(d.getLatBusStop(d.getWay(i)),d.getLngBusStop(d.getWay(i)), d.getLatBusStop(d.getWay(i+1)), d.getLngBusStop(d.getWay(i+1)));
+                    }
+                }
+                System.out.println("values: "+values[0]+", "+values[1]);
+                d.addDistance(values[0]);
+                d.addTime(values[1]);
+            }
+            System.out.println("");
+            System.out.println("Distancia: "+d.getDistance()+" tiempo:"+d.getTime());
+        }
     }
     public void probrar(){
         Destination dest = new Destination("30,40");
@@ -134,12 +173,6 @@ public class Project {
             
         }
         mysql.closeConnection();
-        for (Destination d : destinations) {
-            System.out.println("Destination: "+d.getCoor());
-            for (BusStop b : d.getBus_stops()) {
-                System.out.println("Bus Stop: "+b.getCoor());
-            }
-        }
             
     }
     public long seconds_eta(String eta){
@@ -161,7 +194,9 @@ public class Project {
     public double tripDistance(double lat1,double lng1,double lat2,double lng2,String eta) throws MalformedURLException, IOException{
         long sec_eta = seconds_eta(eta);
         long sec_date = secondsSinceJanuary_1_1970(sec_eta);
-        URL url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins="+lat1+","+lng1+"&destinations="+lat2+","+lng2+"&arrival_time="+sec_date+"&key=AIzaSyDebkks63KOCCwxOYZ5QLsrKxi-qksFkg0");
+        String key = "AIzaSyCw9x5RJafD1gueJFykV8QsXwi5uBsL8ig";
+        URL url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins="+lat1+","+lng1+"&destinations="+lat2+","+lng2+"&arrival_time="+sec_date+"&key="+key);
+        System.out.println(""+url.toString());
         URLConnection con = url.openConnection();
         Authenticator au = new Authenticator() {
             @Override
@@ -184,6 +219,41 @@ public class Project {
             
         }
         return 0;
+    }
+     public double[] values(double lat1,double lng1,double lat2,double lng2) throws MalformedURLException, IOException{
+        double []values= new double[2];
+        String key = "AIzaSyB2LpDehhYLjzZfKFJeyZuhYoHlFbI2m-Q";
+        URL url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins="+lat1+","+lng1+"&destinations="+lat2+","+lng2+"&key="+key);  
+         System.out.println(url.toString());
+        URLConnection con = url.openConnection();
+        Authenticator au = new Authenticator() {
+            @Override
+            protected PasswordAuthentication
+                    getPasswordAuthentication() {
+                return new PasswordAuthentication("usuario", "clave".toCharArray());
+            }
+        };
+        Authenticator.setDefault(au);
+        BufferedReader in = new BufferedReader(
+                new InputStreamReader(con.getInputStream()));
+        String linea;
+        int cont=0;
+        while ((linea = in.readLine()) != null) {
+            if(linea.contains("value")){
+                String []string = linea.split(":");
+                String []string2= string[1].split(" ");
+                values[cont] = Double.parseDouble(string2[1]);
+                cont++;
+                if(cont == 2){
+                    System.out.println("values: "+values[0]+" ,"+values[1]);
+                    return values;
+                }
+            }
+            
+        }
+        values[0] = 0;
+        values[1] = 0;
+        return values;
     }
     
 }

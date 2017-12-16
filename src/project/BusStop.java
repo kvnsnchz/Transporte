@@ -16,6 +16,7 @@ public class BusStop {
     private double lng;
     private double trip_distance;
     private boolean marked;
+    private int destination;
     private ArrayList<Passenger> passengers;
     public BusStop(double lat, double lng,double trip_distance,Passenger pass){
         this.lat = lat;
@@ -24,8 +25,17 @@ public class BusStop {
         passengers = new ArrayList<>();
         passengers.add(pass);
         marked = false;
+        destination = 0;
     }
 
+    public int getDestination() {
+        return destination;
+    }
+
+    public void setDestination(int destination) {
+        this.destination = destination;
+    }
+   
     public boolean isMarked() {
         return marked;
     }
