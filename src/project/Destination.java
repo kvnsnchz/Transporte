@@ -15,16 +15,18 @@ public class Destination {
     private double lat;
     private double lng;
     private ArrayList<BusStop> bus_stops;
-    private ArrayList<Integer> way;
+    private ArrayList<Way> way;
     private double [][]distances;
     private double minimal_distance;
     private String minimal_way;
-    private int destination;
+    private ArrayList<Integer> destination;
     private double distance,time;
     private int size_passengers;
     private double minimal_price;
     private int vehicle;
-
+    private ArrayList<Torta> torta;
+    private ArrayList<Integer> partir;
+    private boolean without_capacity;
     /**
      * Contructor with parameters
      * @param coor a String with latitude and longitude separated by one ','
@@ -36,14 +38,94 @@ public class Destination {
         bus_stops = new ArrayList<>();
         way = new ArrayList<>();
         minimal_distance = -1;
-        destination = 0;
+        destination = new ArrayList<>();
         distance = 0;
         time = 0;
         size_passengers=0;
         minimal_price = -1;
         vehicle = -1;
+        without_capacity = false;
+        partir = new ArrayList<>();
+        torta = new ArrayList<>();
+        Torta t = new Torta(0,360);
+        torta.add(t);
+        
+        
     }
 
+    public boolean isWithout_capacity() {
+        return without_capacity;
+    }
+
+    public void setWithout_capacity(boolean without_capacity) {
+        this.without_capacity = without_capacity;
+    }
+    
+    public void partir(){
+        ArrayList<Integer> par = new ArrayList<>();
+        ArrayList<Double> mitad = new ArrayList<>();
+        ArrayList<Double> inicio = new ArrayList<>();
+        ArrayList<Double> fin = new ArrayList<>();
+        for (int p : partir) {
+            if (p != -1) {
+                par.add(p);
+                mitad.add(torta.get(p).mitad());
+                inicio.add(torta.get(p).getInicio_torta());
+                fin.add(torta.get(p).getFin_torta());
+            }
+
+        }
+        for (int i = 0; i < par.size(); i++) {
+            Torta t1 = new Torta(inicio.get(i),mitad.get(i));
+            t1 = addBusStopsToTorta(t1);
+            Torta t2 = new Torta(mitad.get(i), fin.get(i));
+            t2 = addBusStopsToTorta(t2);
+            torta.add(t1);
+            torta.add(t2);
+            torta.get(partir.get(i)).setEliminado(true);
+            torta.remove(par.get(i));
+        }
+    }
+    public void restartPartir(){
+        partir.clear();
+        for (int p : partir) {
+            p = -1;
+        }
+        
+    }
+    public void addPartir(int i){
+        partir.add(i);
+    }
+    public ArrayList<Integer> getPartir() {
+        return partir;
+    }
+
+    public void setPartir(ArrayList<Integer> partir) {
+        this.partir = partir;
+    }
+    
+    public Torta getTorta(int i){
+        return torta.get(i);
+    }
+    public ArrayList<Torta> getTorta() {
+        return torta;
+    }
+    public int sizeTorta(){
+        int cont = 0;
+        for (Torta t : torta) {
+            if(!t.isEliminado()){
+                cont++;
+            }
+        }
+        return cont;
+    }
+    public void setTorta(Torta torta,int i){
+        this.torta.set(i, torta);
+    }
+    public void setTorta(ArrayList<Torta> torta) {
+        this.torta = torta;
+    }
+    
     /**
      * Get the assigned vehicle 
      * @return assigned vehicle
@@ -156,22 +238,7 @@ public class Destination {
         return lat+","+lng;
     }
 
-    /**
-     * Get the array of ways
-     * @return way
-     */
-    public ArrayList<Integer> getWay() {
-        return way;
-    }
     
-    /**
-     * Get an element of the way
-     * @param i index of the element
-     * @return element of the way
-     */
-    public int getWay(int i){
-        return way.get(i);
-    }
 
     /**
      * Return true if bus stop is empty
@@ -304,60 +371,93 @@ public class Destination {
         }
         return -1;
     }
-
-    /**
-     * find the most approximate optimal way, through insertions
-     */
-    public void optimalWay() {
-        ArrayList<Edge> edges = new ArrayList<>();
-        bus_stops.get(0).setDestination(2);
-        bus_stops.get(1).setDestination(0);
-        bus_stops.get(2).setDestination(1);
-        edges.add(new Edge(0, 2, distances[0][2]));
-        edges.add(new Edge(2, 1, distances[2][1]));
-        edges.add(new Edge(1, 0, distances[1][0]));
-        double distance = distances[1][0] + distances[2][1] + distances[2][1];
-        for (int i = 3; i < bus_stops.size(); i++) {
-            double distance_min_bridge = -1;
-            int min_edge = 0;
-            int cont = 0;
-            for (Edge edge : edges) {
-                double distance_bridge = edge.distanceWithBridge(distances, i, distance);
-                if (distance_min_bridge == -1 || distance_bridge < distance_min_bridge) {
-                    distance_min_bridge = distance_bridge;
-                    min_edge = cont;
-                }
-                cont++;
-            }
-            distance = distance_min_bridge;
-            int ext_a = edges.get(min_edge).getExtremeA();
-            int ext_b = edges.get(min_edge).getExtremeB();
-            bus_stops.get(ext_a).setDestination(i);
-            bus_stops.get(i).setDestination(ext_b);
-            edges.add(new Edge(ext_a, i, distances[ext_a][i]));
-            edges.add(new Edge(i, ext_b, distances[i][ext_b]));
-            edges.remove(min_edge);
-        }
-        double distance_min_bridge = -1;
-        int min_edge = 0;
+    public Torta addBusStopsToTorta(Torta t){
         int cont = 0;
-        for (Edge edge : edges) {
-            double distance_bridge = edge.distanceWithBridge(bus_stops, distance);
-            if (distance_min_bridge == -1 || distance_bridge < distance_min_bridge) {
-                distance_min_bridge = distance_bridge;
-                min_edge = cont;
+        for (BusStop b : bus_stops) {
+            if(b.getDegrees() >= t.getInicio_torta() && b.getDegrees() < t.getFin_torta()){
+                b.setIndex_destinations(cont);
+                t.addBusStop(b);
+                t.addSize_passengers(b.getPassengers().size());
             }
             cont++;
         }
-        distance = distance_min_bridge;
-        int ext_a = edges.get(min_edge).getExtremeA();
-        int ext_b = edges.get(min_edge).getExtremeB();
-        bus_stops.get(ext_a).setDestination(-1);
-        destination = ext_b;
-        edges.add(new Edge(ext_a, -1, bus_stops.get(ext_a).getTrip_distance()));
-        edges.add(new Edge(-1, ext_b, bus_stops.get(ext_b).getTrip_distance()));
-        edges.remove(min_edge);
-        way = way();
+        return t;
+        
+    }
+   
+    
+    /**
+     * find the most approximate optimal way, through insertions
+     */
+    public void optimalWay(int j) {
+        ArrayList<Edge> edges = new ArrayList<>();
+        if(torta.get(j).getBus_stops().isEmpty()){
+            return;
+        }
+        if(torta.get(j).getBus_stops().size() == 1){
+            torta.get(j).getBus_stop(0).setDestination(-1);
+            torta.get(j).setDestination(0);
+            
+        }
+        else {
+            if (torta.get(j).getBus_stops().size() == 2) {
+                torta.get(j).getBus_stop(0).setDestination(-1);
+                torta.get(j).setDestination(1);
+                torta.get(j).getBus_stop(1).setDestination(0);
+            }
+            else {
+                torta.get(j).getBus_stop(0).setDestination(2);
+                torta.get(j).getBus_stop(1).setDestination(0);
+                torta.get(j).getBus_stop(2).setDestination(1);
+                edges.add(new Edge(0, 2, distances[torta.get(j).getI(0)][torta.get(j).getI(2)]));
+                edges.add(new Edge(2, 1, distances[torta.get(j).getI(2)][torta.get(j).getI(1)]));
+                edges.add(new Edge(1, 0, distances[torta.get(j).getI(1)][torta.get(j).getI(0)]));
+                double distance = distances[torta.get(j).getI(1)][torta.get(j).getI(0)] + distances[torta.get(j).getI(0)][torta.get(j).getI(2)] + distances[torta.get(j).getI(2)][torta.get(j).getI(1)];
+                for (int i = 3; i < torta.get(j).getBus_stops().size(); i++) {
+                    double distance_min_bridge = -1;
+                    int min_edge = 0;
+                    int cont = 0;
+                    for (Edge edge : edges) {
+                        double distance_bridge = edge.distanceWithBridge(distances, i, distance);
+                        if (distance_min_bridge == -1 || distance_bridge < distance_min_bridge) {
+                            distance_min_bridge = distance_bridge;
+                            min_edge = cont;
+                        }
+                        cont++;
+                    }
+                    distance = distance_min_bridge;
+                    int ext_a = edges.get(min_edge).getExtremeA();
+                    int ext_b = edges.get(min_edge).getExtremeB();
+                    torta.get(j).getBus_stop(ext_a).setDestination(i);
+                    torta.get(j).getBus_stop(i).setDestination(ext_b);
+                    edges.add(new Edge(ext_a, i, distances[torta.get(j).getI(ext_a)][torta.get(j).getI(i)]));
+                    edges.add(new Edge(i, ext_b, distances[torta.get(j).getI(i)][torta.get(j).getI(ext_b)]));
+                    edges.remove(min_edge);
+                }
+                double distance_min_bridge = -1;
+                int min_edge = 0;
+                int cont = 0;
+                for (Edge edge : edges) {
+                    double distance_bridge = edge.distanceWithBridge(bus_stops, distance);
+                    if (distance_min_bridge == -1 || distance_bridge < distance_min_bridge) {
+                        distance_min_bridge = distance_bridge;
+                        min_edge = cont;
+                    }
+                    cont++;
+                }
+                distance = distance_min_bridge;
+                int ext_a = edges.get(min_edge).getExtremeA();
+                int ext_b = edges.get(min_edge).getExtremeB();
+                torta.get(j).getBus_stop(ext_a).setDestination(-1);
+                torta.get(j).setDestination(ext_b);
+                edges.add(new Edge(ext_a, -1, torta.get(j).getBus_stop(ext_a).getTrip_distance()));
+                edges.add(new Edge(-1, ext_b, torta.get(j).getBus_stop(ext_a).getTrip_distance()));
+                edges.remove(min_edge);
+                torta.get(j).setDistance(distance);
+                torta.get(j).setTime(distance/10);
+                
+            }
+        }
         /*System.out.println("Optimal Way: " + minimal_way + ",destination");
         System.out.println("Distance: " + minimal_distance);*/
     }
@@ -366,22 +466,54 @@ public class Destination {
      * Print the optim way and return it
      * @return optimal way 
      */
-    public ArrayList<Integer> way(){
-        ArrayList<Integer> way = new ArrayList<>();
-        System.out.println("Way");
-        System.out.println("Destination: "+getCoor()+" -> ");
-        int d = destination;
-        way.add(-1);
-        do {  
-            way.add(d);
-            System.out.println("Bus Stop: "+bus_stops.get(d).getCoor()+ "->");
+    public void way(int j){
+        if(torta.get(j).getBus_stops().isEmpty()){
+            return;
+        }
+        Way w = new Way();
+        torta.get(j).addWay(-1);
+        int d = torta.get(j).getDestination();
+        do {
+            d = torta.get(j).getI(d);
+            torta.get(j).addWay(d);
             d = bus_stops.get(d).getDestination();
-        } while (d!=-1);
-        way.add(-1);
-        System.out.println("Destination: "+getCoor());
-        return way;
+        } while (d != -1);
+        torta.get(j).addWay(-1);    
     }
-
+     public void imprimirWay(int i){
+        for (int w : torta.get(i).getWay()) {
+            if(w == -1){
+                System.out.println("Destination "+getCoor()+" ->");
+            }
+            else{
+                System.out.println("Bus Stop "+bus_stops.get(w).getCoor()+" ->");
+            }
+        }
+    }
+    public void calculatePrice(int id,double basic_c,double additional_km,double additional_30_min,int i){
+        double price;
+        if(torta.get(i).getDistance_min()== 0 || torta.get(i).getTime_min()== 0){
+            price = 0;
+        }
+        else{
+            price = basic_c;
+        }
+        
+        double km = ((torta.get(i).getDistance_min())/1000)-15;
+        double min = (torta.get(i).getTime_min()/60)-30;
+        int km_i = (int)km;
+        if(km_i > 0){
+            price += (((double)km_i)* additional_km);
+        }
+        int min_30 = (int)(min/30);
+        if(min_30 > 0){
+            price += (((double)min_30)*additional_30_min);
+        }
+        if(torta.get(i).getMinimal_price() == -1 || price < torta.get(i).getMinimal_price()){
+            torta.get(i).setMinimal_price(price);
+            torta.get(i).setVehicle(id);
+        }
+    }
     /**
      * Calculate the price of the vehicle with the parameters sent, and see if it is the most optimal
      * @param id id the vehicle

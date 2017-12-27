@@ -15,7 +15,9 @@ public class BusStop {
     private double lat;
     private double lng;
     private double trip_distance;
+    private double degrees;
     private int destination;
+    private int index_destinations;
     private ArrayList<Passenger> passengers;
 
     /**
@@ -25,15 +27,33 @@ public class BusStop {
      * @param trip_distance trip distance from the bus stop to the destination
      * @param pass first passenger added to the bus stop
      */
-    public BusStop(double lat, double lng,double trip_distance,Passenger pass){
+    public BusStop(double lat, double lng,double lat_dest,double lng_dest,double trip_distance,Passenger pass){
         this.lat = lat;
         this.lng = lng;
         this.trip_distance = trip_distance;
         passengers = new ArrayList<>();
         passengers.add(pass);
         destination = 0;
+        index_destinations = 0;
+        calculatedDegrees(lat, lng, lat_dest, lng_dest);
     }
 
+    public int getIndex_destinations() {
+        return index_destinations;
+    }
+
+    public void setIndex_destinations(int index_destinations) {
+        this.index_destinations = index_destinations;
+    }
+    
+    public double getDegrees() {
+        return degrees;
+    }
+
+    public void setDegrees(double degrees) {
+        this.degrees = degrees;
+    }
+    
     /**
      * Get the destination
      * @return next bus stop or destination
@@ -121,7 +141,13 @@ public class BusStop {
     public void addPassenger(Passenger pass){
         passengers.add(pass);
     }
-
+    public void calculatedDegrees(double lat,double lng,double lat_dest,double lng_dest){
+        double aRad = Math.atan2(lat-lat_dest,lng-lng_dest);
+        degrees = Math.toDegrees(aRad);
+        if(degrees < 0){
+            degrees += 360;
+        }
+    }
     /**
      * Returns -1 if the lat and lng do not belong to any bus stop in the bus_Stop array
      * if found, return the index in the array.

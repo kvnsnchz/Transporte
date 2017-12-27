@@ -29,7 +29,7 @@ public class Project {
     MySQL mysql;
     double walking_distance;
     double max_time_to_dest;
-    
+    ArrayList<Vehicles> vehicles;
     ArrayList<Destination> destinations;
 
     /**
@@ -38,19 +38,23 @@ public class Project {
     public Project(){
         mysql = new MySQL();
         walking_distance = 600;
-        max_time_to_dest = 288000000;
+        max_time_to_dest = 5400;
         destinations = new ArrayList<>();
+        vehicles = new ArrayList<>();
     }
     public static void main(String[] args){
         Project p = new Project();
         p.start();
     }
+
+    /**
+     * start project
+     */
     public void start(){
         try {
             fillDestination();
             defaultStationAssignment();
             searchWayToDestination();
-            assignVehicles();
         } catch (SQLException ex) {
             System.out.println(ex.getMessage());
         } catch (IOException ex) {
@@ -70,13 +74,29 @@ public class Project {
      * search the optimal ways of the destination
      * @throws IOException
      */
-    public void searchWayToDestination() throws IOException{
+    public void searchWayToDestination() throws IOException, SQLException{
+        vehicles();
         separators();
         System.out.println("Number of destinations: "+destinations.size());
+        int cont = 0;
         for (Destination d : destinations) {
             d.startMatrixDistance();
+            d.setTorta(d.addBusStopsToTorta(d.getTorta(0)),0);
             separators();
             System.out.println("Destination: "+d.getCoor()+" Bus stop: "+d.getBusStops().size());
+            System.out.println("");
+            System.out.println("Walking distance with other destinations: ");
+            System.out.println("");
+            for (int i = 0; i < destinations.size(); i++) {
+                if(i != cont){
+                    double dist = distanceCoord(d.getLat(), d.getLng(), destinations.get(i).getLat(), destinations.get(i).getLng());
+                    System.out.println("distance: "+dist+" m with destination: "+destinations.get(i).getCoor());
+                    System.out.println("");
+                }
+                
+            }
+            cont++;
+            
             for (int i = 0; i < d.getBusStops().size(); i++) {
                 for (int j = i+1; j < d.getBusStops().size(); j++) {
                     //double t = tripDistance(d.getLatBusStop(i), d.getLngBusStop(i), d.getLatBusStop(j), d.getLngBusStop(j));
@@ -84,36 +104,174 @@ public class Project {
                     d.addDistance(i, j,t);
                 }
             }
-            d.optimalWay();
-            calculateValues(d);
         }
+        vehicles();
+        assignedWays();
+        imprimir();
     }
-
-    /**
-     * Calculate the values of distance and time of the optimal way
-     * @param d destination
-     * @throws IOException
-     */
-    public void calculateValues(Destination d) throws IOException {
-        for (int i = 0; i < d.getWay().size() - 1; i++) {
-            double[] values;
-            if (d.getWay(i) == -1) {
-                values = values(d.getLat(), d.getLng(), d.getLatBusStop(d.getWay(i + 1)), d.getLngBusStop(d.getWay(i + 1)));
-            } else {
-                if (d.getWay(i + 1) == -1) {
-                    values = values(d.getLatBusStop(d.getWay(i)), d.getLngBusStop(d.getWay(i)), d.getLat(), d.getLng());
-                } else {
-                    values = values(d.getLatBusStop(d.getWay(i)), d.getLngBusStop(d.getWay(i)), d.getLatBusStop(d.getWay(i + 1)), d.getLngBusStop(d.getWay(i + 1)));
+    public void vehicles() throws SQLException{
+        mysql.createConnection();
+        ResultSet rs = mysql.getValues("tblvehicleparameters");
+        while(rs.next()){
+            vehicles.add(new Vehicles(rs.getInt("NumberOfSeatMax")));
+        }
+        mysql.closeConnection();
+    }
+    public boolean revisarVehicle(int size_passengers){
+        for (Vehicles vehicle : vehicles) {
+            if(!vehicle.isAssigned()){
+                if(vehicle.getNum_seat() >= size_passengers){
+                    return true;
                 }
             }
-            System.out.println("calculated...");
-            d.addDistance(values[0]);
-            d.addTime(values[1]);
         }
-        System.out.println("Trip Distance: " + d.getDistance() + "Trip Duration:" + d.getTime());
+        return false;
+    }
+    public boolean assignedAllVehicle(){
+        for (Vehicles vehicle : vehicles) {
+            if(!vehicle.isAssigned()){
+                return false;
+            }
+        }
+        return true;
+    }
+    public void assignedWays() throws IOException, SQLException {
+        for (Destination d : destinations) {
+            System.out.println("Destino: "+d.getCoor());
+            mysql.createConnection();
+            ResultSet rs_1 = mysql.getValues("tblvehicleparameters");
+            while (rs_1.next()) {
+                mysql.updateDataVehicles(rs_1.getInt("cateory"), false);
+            }
+            mysql.closeConnection();
+            for (Vehicles vehicle : vehicles) {
+                vehicle.setAssigned(false);
+            }
+            boolean repetir;
+            do {
+                d.partir();
+                d.restartPartir();
+                repetir = false;
+                if(d.sizeTorta() > vehicles.size() || assignedAllVehicle()){
+                    d.setWithout_capacity(true);
+                }
+                else{
+                    for (int i = 0; i < d.getTorta().size(); i++) {
+                        if (!d.getTorta(i).isFine() && !d.getTorta(i).isEliminado() && !d.getTorta(i).getBus_stops().isEmpty()) {
+                            d.optimalWay(i); 
+                            d.way(i);
+                            calculateValues(d.getTorta(i), d);
+                            if (!revisarVehicle(d.getTorta(i).getSize_passengers()) || d.getTorta(i).getTime_min()> max_time_to_dest) {
+                                d.addPartir(i);
+                                repetir = true;
+                            } else {
+                                System.out.println("calculated");
+                                d.getTorta().get(i).setFine(true);
+                                assignVehicles(d, i);
+                            }
+                        }
+
+                    }
+                }
+                
+            } while (repetir);
+            
+        }
+        
+    }
+    public void imprimir(){
+        separators();
+        System.out.println("Result: ");
+        separators();
+        for (Destination d : destinations) {
+            separators();
+            System.out.println("Destination: "+d.getCoor());
+            separators();
+            if(d.isWithout_capacity()){
+                System.out.println("There are not enough vehicles or with the necessary capacity to cover this destination");
+            }
+            else{
+                int cont = 1;
+                for (int i = 0; i < d.getTorta().size(); i++) {
+                    if(!d.getTorta(i).isEliminado() && !d.getTorta(i).getBus_stops().isEmpty()){
+                        System.out.println("");
+                        System.out.println("Ruta " + (cont++) + " Assigned Vehicle: " + d.getTorta(i).getVehicle() + " Bus Stop: " + d.getTorta(i).getBus_stops().size()+" Passengers: "+d.getTorta(i).getSize_passengers());
+                        System.out.println("");
+                        System.out.println("Trip cost: " + d.getTorta(i).getMinimal_price() + " Trip Duration: " + (d.getTorta(i).getTime_min()/60)+" min");
+                        System.out.println("");
+                        d.imprimirWay(i);
+                    }
+                    
+                }
+                separators();
+                System.out.println("Buses chosen to cover the route: "+(cont-1));
+            }
+        }
+        separators();
+        System.out.println("Bus assigned to each passenger: ");
+        separators();
+        for (Destination d : destinations) {
+           
+            if (!d.isWithout_capacity()) {
+                 System.out.println("Destination: " + d.getCoor());
+                for (Torta t : d.getTorta()) {
+                    if (!t.isEliminado() && !t.getBus_stops().isEmpty()) {
+                        for (BusStop b : t.getBus_stops()) {
+                            for (Passenger p : b.getPassengers()) {
+                                System.out.println("Passenger: " + p.getPass_no() + " Bus: " + t.getVehicle());
+                            }
+                        }
+                    }
+
+                }
+
+            }
+        }
+    }
+    public void calculateValues(Torta t, Destination d) throws IOException {
+        for (int i = 0; i < t.getWay().size() - 1; i++) {
+            double[] values;
+            if (t.getWay(i) == -1) {
+                values = values(d.getLat(), d.getLng(), d.getLatBusStop(t.getWay(i + 1)), d.getLngBusStop(t.getWay(i + 1)));
+            } else {
+                if (t.getWay(i + 1) == -1) {
+                    values = values(d.getLatBusStop(t.getWay(i)), d.getLngBusStop(t.getWay(i)), d.getLat(), d.getLng());
+                } else {
+                    values = values(d.getLatBusStop(t.getWay(i)), d.getLngBusStop(t.getWay(i)), d.getLatBusStop(t.getWay(i + 1)), d.getLngBusStop(t.getWay(i + 1)));
+                }
+            }
+            t.addDistance_min(values[0]);
+            t.addTime_min(values[1]);
+        }
 
     }
 
+    public void assignVehicles(Destination d,int j) throws SQLException{
+        mysql.createConnection();
+        ResultSet rs = mysql.getValues("tblvehicleparameters");
+        ArrayList<Boolean> assigned = new ArrayList<>();
+        while(rs.next()){
+            assigned.add(rs.getBoolean("assigned"));
+        }
+        rs.beforeFirst();
+        int i = 0;
+        while (rs.next()) {
+            if (rs.getInt("NumberOfSeatMax") >= d.getTorta(j).getSize_passengers() && !assigned.get(i)) {
+                d.calculatePrice(rs.getInt("cateory"), rs.getDouble("BasicCost"), rs.getDouble("EveryAdditionalKm"), rs.getDouble("EveryAdditional30min"),j);
+            }
+            i++;
+        }
+        rs.beforeFirst();
+        i = 0;
+        while (rs.next()) {
+            if (rs.getInt("cateory") == d.getTorta(j).getVehicle()) {
+                mysql.updateDataVehicles(d.getTorta(j).getVehicle(), d.getTorta(j).getMinimal_price(), d.getTorta(j).getMinimal_price() / rs.getInt("NumberOfSeatMax"), d.getTorta(j).getTime_min(), d.getTorta(j).getDistance_min(), true);
+                assigned.set(i, true);
+            }
+            i++;
+        }
+        mysql.closeConnection();
+    }
     /**
      * Assign vehicles to the optimal way the destination
      * @throws SQLException
@@ -167,6 +325,7 @@ public class Project {
                 }
             }
         }
+        mysql.closeConnection();
     }
     
     /**
@@ -198,7 +357,7 @@ public class Project {
         int i = Destination.indexArray(destinations, dest_lat, dest_lng);
         int j = destinations.get(i).containedInArrayBusStops(buss_lat, buss_lng);
         if(destinations.get(i).busStopsIsEmpty() || j==-1){
-            destinations.get(i).addBusStop(new BusStop(buss_lat, buss_lng, trip_distance, new Passenger(pass_no)));
+            destinations.get(i).addBusStop(new BusStop(buss_lat, buss_lng, destinations.get(i).getLat(), destinations.get(i).getLng(), trip_distance, new Passenger(pass_no)));
         }
         else{
             destinations.get(i).addPassenger(j,new Passenger(pass_no));
@@ -232,6 +391,9 @@ public class Project {
      * @throws IOException
      */
     public void defaultStationAssignment() throws SQLException, IOException{
+        separators();
+        System.out.println("Default Station Assignment");
+        separators();
         mysql.createConnection();
         ResultSet rs_pass = mysql.getValues("passengers");
         ResultSet rs_bs = mysql.getValues("busstop");
@@ -266,6 +428,7 @@ public class Project {
                 String[] string3 = default_s.split(",");
                 double lat3 = Double.parseDouble(string3[0]);
                 double lng3 = Double.parseDouble(string3[1]);
+                //double trip_distance = 0;
                 double trip_distance = tripDistance(lat3, lng3, lat2, lng2, rs_pass.getString("eta"));
                 System.out.println("trip distance: " + trip_distance);
                 addBusStop(lat2, lng2, lat3, lng3, trip_distance, id);
@@ -309,7 +472,8 @@ public class Project {
     }
 
     /**
-     * Calculate the trip distance between two coordinates according to ETA using the Google map API
+     * Calculate the trip distance between two coordinates according to ETA using the Google map API 
+     * if the values give zero, it is because the free quota of the key was exceeded
      * @param lat1 latitude the coordinate 1
      * @param lng1 longitude the coordinate 1
      * @param lat2 latitude the coordinate 2
@@ -322,7 +486,8 @@ public class Project {
     public double tripDistance(double lat1,double lng1,double lat2,double lng2,String eta) throws MalformedURLException, IOException{
         long sec_eta = seconds_eta(eta);
         long sec_date = secondsSinceJanuary_1_1970(sec_eta);
-        String key = "AIzaSyCw9x5RJafD1gueJFykV8QsXwi5uBsL8ig";
+        String key = "AIzaSyDNtMV5Da2yIa_8vgrzf39idtk4Ub4oWGE";
+       // String key = "AIzaSyAnlqk06SoqZKMIZV-t3aGVdy__YayqhQ4";
         URL url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins="+lat1+","+lng1+"&destinations="+lat2+","+lng2+"&arrival_time="+sec_date+"&key="+key);
         URLConnection con = url.openConnection();
         Authenticator au = new Authenticator() {
@@ -350,6 +515,7 @@ public class Project {
 
     /**
      * Return the distance and duration the trip between two coordinates using the Google map API
+     * if the values give zero, it is because the free quota of the key was exceeded
      * @param lat1 latitude the coordinate 1
      * @param lng1 longitude the coordinate 1
      * @param lat2 latitude the coordinate 2
@@ -360,7 +526,8 @@ public class Project {
      */
     public double[] values(double lat1,double lng1,double lat2,double lng2) throws MalformedURLException, IOException{
         double []values= new double[2];
-        String key = "AIzaSyB2LpDehhYLjzZfKFJeyZuhYoHlFbI2m-Q";
+        String key = "AIzaSyAPFuHKFzWSEOiWFbf7AT51bjaZeNUEluo";
+        //String key = "AIzaSyB_kQOjIY37xkb5MUaFQZ-Cu9rtz50_0fQ";
         URL url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins="+lat1+","+lng1+"&destinations="+lat2+","+lng2+"&key="+key);  
         URLConnection con = url.openConnection();
         Authenticator au = new Authenticator() {
@@ -382,7 +549,6 @@ public class Project {
                 values[cont] = Double.parseDouble(string2[1]);
                 cont++;
                 if(cont == 2){
-                    System.out.println("values: "+values[0]+" ,"+values[1]);
                     return values;
                 }
             }
